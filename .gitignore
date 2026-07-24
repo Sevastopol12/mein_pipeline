@@ -1,0 +1,24 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+logs/
+object_storage_temp/
+documents/
+
+*.egg-info
+*.log
+*Dockerfile
+*.yaml
+*.ipynb
+*.json
+*.cfg
+*.txt
+
+# Virtual environments
+.venv
+.env
+
+
