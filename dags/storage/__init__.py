@@ -1,4 +1,3 @@
-import logging
 from .models import Event, EventItem, Base
 from .connection import CloudStorageConnection
 from .credential import S3Credential, GCCredential
