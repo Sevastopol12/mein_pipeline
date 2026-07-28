@@ -1,10 +1,12 @@
 import fsspec
+
+from io import BytesIO
 from pathlib import PurePosixPath
 from dataclasses import dataclass, field
 import logging
 from typing import Any
 
-from ..credential import Credential, S3Credential
+from ..credential import Credential
 from ..utils import hash_file_content
 
 
@@ -18,7 +20,7 @@ class CloudStorageConnection:
     storage_path: str
     session: Any = None
     supported_format: set[str] = field(
-        default_factory=lambda: {".pdf", ".docx", "pptx", ".txt"}
+        default_factory=lambda: {".pdf", ".docx", ".pptx", ".txt"}
     )
 
     @classmethod
@@ -43,14 +45,14 @@ class CloudStorageConnection:
         logger.info("Opening session...")
         self.session = await self.connection.set_session()
 
-        logger.info(self.session)
+        logger.info(f"Session opened: [{self.session}]")
         return self.connection
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None:
             logger.critical(f"[{exc_type}]-[{exc_val}]-[{exc_tb}]")
 
-        logger.info("Closing session...")
+        logger.info(f"Closing session [{self.session}]...")
 
         await self.session.close()
         self.session = None
@@ -67,17 +69,20 @@ class CloudStorageConnection:
 
         return valid_urls
 
-    async def hash_content(self, urls: list[str]) -> dict[str, str]:
-        url_and_hash: set = {}
+    async def hash_content(self, urls: list[str]) -> dict[str, dict]:
+        content_references: set = {}
         logger.info("Hashing files...")
 
         for file_url in urls:
-            file_content = await self.connection._cat_file(file_url)
-            url_and_hash[file_url] = hash_file_content(file_content)
+            raw_bytes_content: bytes = await self.connection._cat_file(file_url)
+            content_references[hash_file_content(raw_bytes_content)] = {
+                "format": PurePosixPath(file_url).suffix.lower().replace(".", ""),
+                "raw_bytes": raw_bytes_content,
+            }
 
         logger.info("All file hashed...")
 
-        return url_and_hash
+        return content_references
 
     def _filter_unsupported_format(self, file_paths: list[str]) -> list[str]:
         valid_paths = [
