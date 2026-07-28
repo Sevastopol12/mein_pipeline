@@ -1,5 +1,4 @@
 import logging
-import json
 
 from pydantic import BaseModel, ValidationError
 from typing import Optional

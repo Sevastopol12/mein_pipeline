@@ -1,24 +1,54 @@
-import logging
-import os
-from asyncio import create_task, gather, Future
-from .sources import fetch_supabase_s3
+from asyncio import create_task, gather
 from .models import Event, EventItem, Base
+from .connection import CloudStorageConnection
+from .credential import S3Credential, GCCredential
 
-logger = logging.getLogger(__name__)
+
+async def fetch_from_storage(storage_provider: str, bucket_name: str):
+    try:
+        s3_credential = S3Credential(storage_provider, bucket_name)
+        s3_connection = CloudStorageConnection.establish_connection(
+            credential=s3_credential
+        )
+
+        async with s3_connection:
+            file_urls = await s3_connection.get_all_file_urls()
+            all_file_with_hash_value = await s3_connection.hash_content(file_urls)
+
+        return all_file_with_hash_value
+
+    except Exception as e:
+        raise
 
 
-async def fetch_all_sources():
-    results: list[Future[list]] = await gather(
-        *[create_task(fetch_supabase_s3(os.get("SUPABASE_BUCKET_NAME")))]
-    )
+async def ingestion() -> list[dict[str, str | bytes]]:
+    storage_info = [("supabase", "checkin_app"), ("neon", "neoncheckin")]
 
-    files = []
-    for fetch_result in results:
-        files.extend(fetch_result)
+    tasks = [
+        create_task(
+            fetch_from_storage(storage_provider=provider, bucket_name=bucket_name)
+        )
+        for provider, bucket_name in storage_info
+    ]
+
+    all_fetch_results = await gather(*tasks)
+
+    deduplicated_files: dict[str, dict] = {}
+
+    for result in all_fetch_results:
+        if isinstance(result, dict):
+            for hash_value, properties in result.items():
+                deduplicated_files[hash_value] = properties
+
+    return [prop for prop in deduplicated_files.values()]
 
 
 __all__ = [
     "Event",
     "EventItem",
     "Base",
+    "CloudStorageConnection",
+    "S3Credential",
+    "GCCredential",
+    "ingestion",
 ]
