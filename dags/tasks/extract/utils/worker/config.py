@@ -1,22 +1,26 @@
 from tenacity import wait_exponential_jitter
-from google.genai.errors import ClientError
+from google.genai.errors import ClientError, ServerError
 from pydantic import BaseModel
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
 class ExtractorConfig:
     model_name: str
     instruction: str
-    response_schema: Optional[BaseModel] = None
+    response_schema: BaseModel
     rpm: int = 15
     max_attempts: int = 10
 
-    def _retry_on_exception(exception) -> bool:
-        if isinstance(exception, ClientError) and exception.code != 429:
-            return False
-        return True
+    def _retry_on_exception(self, exception) -> bool:
+        if isinstance(exception, ServerError):
+            return True
+
+        if isinstance(exception, ClientError):
+            if exception.code != 429:
+                return True
+
+        return False
 
 
 class ResponseBaseWait:

@@ -1,6 +1,6 @@
 import logging
-from google.genai.types import File
 from asyncio import Queue
+from pydantic import BaseModel
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -13,20 +13,20 @@ class PoisonPill:
 
 
 class ProductionQueue:
-    def __init__(self, queue: Queue[File | PoisonPill]):
-        self.production_queue: Queue = queue
-        self.succeed_tasks: list = []
-        self.failed_tasks: list = []
+    def __init__(self, queue: Queue[dict | PoisonPill]):
+        self.queue: Queue = queue
+        self.succeed_tasks: list[BaseModel] = []
+        self.failed_tasks: list[dict] = []
 
     @classmethod
-    def _create(cls, tasks: list[File], n_workers: int = 1):
+    def _create(cls, tasks: list[dict], n_workers: int = 1):
         production_queue = Queue()
 
         for task in tasks:
-            if isinstance(task, File):
+            if isinstance(task, dict):
                 production_queue.put_nowait(task)
 
-        for _ in n_workers:
+        for _ in range(n_workers):
             production_queue.put_nowait(PoisonPill())
 
         return cls(queue=production_queue)
@@ -36,7 +36,7 @@ class ProductionQueue:
         if record.get("status") == "SUCCEED":
             self.succeed_tasks.append(record.get("object"))
         else:
-            self.failed.append(record.get("object"))
+            self.failed_tasks.append(record.get("object"))
 
     def summarize(self) -> dict[str, list]:
         return {

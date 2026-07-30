@@ -1,9 +1,4 @@
-from .worker import ExtractorConfig, ResponseBaseWait, extractor
+from .worker import ExtractorConfig, ResponseBaseWait, Extractor
 from .queue import ProductionQueue
 
-__all__ = [
-    "ExtractorConfig",
-    "ResponseBaseWait",
-    "ProductionQueue",
-    "extractor"
-]
+__all__ = ["ExtractorConfig", "ResponseBaseWait", "ProductionQueue", "Extractor"]
