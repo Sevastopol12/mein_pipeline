@@ -1,12 +1,11 @@
 import logging
 
 from .config import ExtractorConfig, ResponseBaseWait
-from ..queue import PoisonPill
+from ..queue import PoisonPill, ProductionQueue
 
 from pydantic import ValidationError
 
-from asyncio import Queue
-from google.genai.types import File, GenerateContentConfig, GenerateContentResponse
+from google.genai.types import GenerateContentConfig, GenerateContentResponse, Part
 from google.genai.errors import ClientError, ServerError
 
 from tenacity import (
@@ -20,65 +19,71 @@ from aiolimiter import AsyncLimiter
 logger = logging.getLogger(__name__)
 
 
-async def extractor(
-    pending_queue: Queue[File | PoisonPill], client, config: ExtractorConfig
-):
-    rpm_limit = AsyncLimiter(config.rpm)
+class Extractor:
+    def __init__(self, client, config: ExtractorConfig):
+        self.client = client
+        self.config = config
 
-    resolved: list[bytes] = []
-    unresolved: list[File] = []
+    async def process(self, task_holder: ProductionQueue) -> None:
+        rpm_limit = AsyncLimiter(self.config.rpm)
 
-    while True:
-        try:
-            task = await pending_queue.get()
+        while True:
+            try:
+                task: dict = await task_holder.queue.get()
 
-            if isinstance(task, PoisonPill):
-                logger.info("No task left. Returning...")
-                return {"resolved": resolved, "unresolved": unresolved}
+                if isinstance(task, PoisonPill):
+                    logger.info("No task left. Returning...")
+                    return
 
-            logger.info(f"{config.model_name} got file: {task.name}")
-            async for attempt in AsyncRetrying(
-                stop=stop_after_attempt(config.max_attempts),
-                retry=retry_if_exception(config._retry_on_exception),
-                wait=ResponseBaseWait(),
-            ):
-                with attempt:
-                    async with rpm_limit:
-                        json_response_object = await _get_content(task, client, config)
-                    resolved.append(json_response_object)
-                    logger.info(f"[{task.name}] content extracted.")
+                logger.info(f"{self.config.model_name} got file: {task.get('format')}")
 
-        except (ClientError, ServerError, ValidationError) as e:
-            logger.critical(e)
-            unresolved.append(task)
+                async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(self.config.max_attempts),
+                    retry=retry_if_exception(self.config._retry_on_exception),
+                    wait=ResponseBaseWait(),
+                ):
+                    with attempt:
+                        async with rpm_limit:
+                            json_response_object = await self.extract_content(task)
+                        task_status = {
+                            "status": "SUCCEED",
+                            "object": json_response_object,
+                        }
+                        task_holder.record(task_status)
 
-        except Exception:
-            logger.error("Max attempt reached. Returning...")
-            unresolved.append(task)
+            except (ClientError, ServerError, ValidationError) as e:
+                logger.critical(e)
+                task_status = {"status": "FAILED", "object": task}
+                task_holder.record(task_status)
+            except Exception as e:
+                logger.exception(e)
+                task_status = {"status": "FAILED", "object": task}
+                task_holder.record(task_status)
+            finally:
+                task_holder.queue.task_done()
 
-        finally:
-            pending_queue.task_done()
+    async def extract_content(
+        self,
+        task: dict,
+    ) -> bytes:
+
+        file = Part.from_bytes(
+            data=task.get("raw_bytes"), mime_type=f"application/{task.get('format')}"
+        )
+
+        logger.info(f"Format: {task.get('format')}.\n File: {file}")
+
+        response: GenerateContentResponse = await self.client.models.generate_content(
+            model=self.config.model_name,
+            contents=[self.config.instruction, file],
+            config=GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=self.config.response_schema,
+            ),
+        )
+        content = response.text.replace("*", "").replace("`", "").strip()
+
+        return self.config.response_schema.model_validate_json(content)
 
 
-async def _get_content(
-    file: File,
-    client,
-    config,
-) -> bytes:
-    response: GenerateContentResponse = await client.models.generate_content(
-        model=config.model_name,
-        contents=[config.instruction, file],
-        config=GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=config.response_schema,
-        ),
-    )
-    content = response.text.replace("*", "").replace("`", "").strip()
-
-    if not config.response_schema.model_validate_json(content):
-        raise ValidationError()
-
-    return content
-
-
-__all__ = ["extractor"]
+__all__ = ["Extractor"]
