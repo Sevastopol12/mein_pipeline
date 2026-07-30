@@ -61,7 +61,9 @@ async def extract(tasks: list[dict]):
         logger.info("Storing results.")
 
         with open("tester/succeed.jsonl", "w", encoding="utf-8") as file:
-            data = "\n".join(item.model_dump_json() for item in succeed)
+            data = "\n".join(
+                item.model_dump_json() for item in succeed if item.is_event
+            )
             file.write(data)
 
         with open("tester/failed.jsonl", "w", encoding="utf-8") as file:
