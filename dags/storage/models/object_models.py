@@ -33,6 +33,10 @@ class EventItem(BaseModel):
     id: str = Field(
         description="The unique identifier for the document, which is the hashed file name or its uploaded path."
     )
+
+    is_event: bool = Field(
+        description="True if the document contains details about an event hosted by a person or organization; False otherwise."
+    )
     title: str = Field(description="The main title or name of the event.")
 
     content: str = Field(
