@@ -63,3 +63,12 @@ class EventItem(BaseModel):
     end_at: str = Field(
         description="The end date and time of the event. Must be in ISO 8601 format (e.g., YYYY-MM-DDTHH:MM:SSZ)."
     )
+
+
+class ParquetTable(BaseModel):
+    format: str
+    encoded_bytes: str
+
+    @classmethod
+    def get_template(cls) -> dict[str, list]:
+        return {attr: [] for attr in cls.model_fields.keys()}

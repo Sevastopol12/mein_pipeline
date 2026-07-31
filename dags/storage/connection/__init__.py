@@ -1,4 +1,5 @@
 import fsspec
+import tempfile
 
 from io import BytesIO
 from pathlib import PurePosixPath
@@ -7,7 +8,7 @@ import logging
 from typing import Any
 
 from ..credential import Credential
-from ..utils import hash_file_content
+from ..utils import hash_file_content, encode_file_content
 
 
 logger = logging.getLogger(__name__)
@@ -69,7 +70,7 @@ class CloudStorageConnection:
 
         return valid_urls
 
-    async def hash_content(self, urls: list[str]) -> dict[str, dict]:
+    async def hash_and_encode_content(self, urls: list[str]) -> dict[str, dict]:
         content_references: set = {}
         logger.info("Hashing files...")
 
@@ -77,7 +78,7 @@ class CloudStorageConnection:
             raw_bytes_content: bytes = await self.connection._cat_file(file_url)
             content_references[hash_file_content(raw_bytes_content)] = {
                 "format": PurePosixPath(file_url).suffix.lower().replace(".", ""),
-                "raw_bytes": raw_bytes_content,
+                "encoded_bytes": encode_file_content(raw_bytes_content),
             }
 
         logger.info("All file hashed...")
@@ -92,6 +93,9 @@ class CloudStorageConnection:
         ]
 
         return valid_paths
+
+    async def dump_parquet_file_to_bucket(self, chunk_name: str, data_bytes: bytes):
+        await self.connection._pipe_file(f"{self.storage_path}/{chunk_name}", data_bytes)
 
 
 __all__ = ["CloudStorageConnection"]
