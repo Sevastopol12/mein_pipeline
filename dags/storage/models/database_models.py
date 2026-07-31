@@ -1,5 +1,5 @@
 import json
-from uuid import UUID, uuid5
+from uuid import UUID
 from typing import Any, Dict
 
 from sqlalchemy import Text, ForeignKey, UUID as PG_UUID

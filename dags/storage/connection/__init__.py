@@ -1,7 +1,5 @@
 import fsspec
-import tempfile
 
-from io import BytesIO
 from pathlib import PurePosixPath
 from dataclasses import dataclass, field
 import logging
@@ -95,7 +93,9 @@ class CloudStorageConnection:
         return valid_paths
 
     async def dump_parquet_file_to_bucket(self, chunk_name: str, data_bytes: bytes):
-        await self.connection._pipe_file(f"{self.storage_path}/{chunk_name}", data_bytes)
+        await self.connection._pipe_file(
+            f"{self.storage_path}/{chunk_name}", data_bytes
+        )
 
 
 __all__ = ["CloudStorageConnection"]
