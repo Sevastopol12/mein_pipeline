@@ -34,4 +34,6 @@ class ResponseBaseWait:
             return 60
         if exception.code == 503:
             return 4
+        if exception.code == 504:
+            return 15
         return self.default_wait(retry_state=retry_state)
