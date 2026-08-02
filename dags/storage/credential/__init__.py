@@ -3,7 +3,6 @@ import logging
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 from abc import abstractmethod
-from typing import Optional
 
 
 logger = logging.getLogger(__name__)
@@ -19,9 +18,9 @@ class Credential:
 
 @dataclass
 class S3Credential(Credential):
-    protocol: str = "s3"
     bucket_type: str
     bucket_name: str
+    protocol: str = "s3"
 
     def _get_credentials(self) -> dict:
         """Return credentials for storage connection."""
@@ -39,9 +38,9 @@ class S3Credential(Credential):
 
 @dataclass
 class GCCredential(Credential):
-    protocol: str = "gc"
     bucket_type: str
     bucket_name: str
+    protocol: str = "gc"
 
     def _get_credentials(self) -> dict:
         pass
