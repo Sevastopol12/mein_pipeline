@@ -1,12 +1,25 @@
 import logging
 import json
 
+
 from asyncio import create_task, gather
 from pydantic import BaseModel
 
 from .connection import get_async_client
-from .utils import ProductionQueue, ExtractorConfig, Extractor
-from dags.storage import EventItem
+from .utils import (
+    ProductionQueue,
+    ExtractorConfig,
+    Extractor,
+    decode_and_convert_to_records,
+)
+from dags.storage import (
+    EventItem,
+    DataChunkManager,
+    StatusType,
+    RDBCredential,
+    CloudStorageConnection,
+    S3Credential,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -18,9 +31,8 @@ async def assign_worker(async_client, queue: ProductionQueue, config: ExtractorC
     return status
 
 
-async def extract(tasks: list[dict]):
+async def extract(tasks: list[dict], models: list[str]):
     try:
-        models = ["gemma-4-31b-it", "gemma-4-26b-a4b-it"]
         queue = ProductionQueue._create(tasks=tasks, n_workers=len(models))
         instruction: str = """
         - Determine if the document describes an event hosted by a person or organization.
@@ -72,5 +84,49 @@ async def extract(tasks: list[dict]):
 
         logger.info("Done.")
 
+        return 1
     except Exception as e:
         logger.exception(e)
+        return 0
+
+
+async def run_extraction():
+    models = ["gemma-4-31b-it", "gemma-4-26b-a4b-it"]
+
+    data_chunk_manager = DataChunkManager.establish_connection(
+        credential=RDBCredential()
+    )
+    staging_database_connection = CloudStorageConnection.establish_connection(
+        credential=S3Credential(bucket_type="STG", bucket_name="staging"),
+        supported_format=".parquet",
+    )
+
+    all_chunk_status = await data_chunk_manager.all_chunk_status()
+
+    async with staging_database_connection:
+        for chunk_status in all_chunk_status:
+            logger.info(f"Processing: {chunk_status}")
+            if chunk_status["status"] == StatusType.PENDING:
+                data_chunk = await staging_database_connection.read_parquet_file(
+                    chunk_id=chunk_status["chunk_id"]
+                )
+
+            tasks = decode_and_convert_to_records(
+                file_format=data_chunk.get("format"),
+                encoded_bytes=data_chunk.get("encoded_bytes"),
+            )
+
+            logger.info("Data converted to ideal format. Rxtracting content...")
+
+            result = await extract(tasks=tasks, models=models)
+
+            if result:
+                rowcount = await data_chunk_manager.update_chunk_status(
+                    chunk_id=chunk_status["chunk_id"], status=StatusType.DONE
+                )
+                logger.info(f"Chunk marked as done: {'True' if rowcount else 'False'}")
+
+    logger.info("Extract complete.")
+    return 1
+
+__all__ = ["run_extraction", "extract"]

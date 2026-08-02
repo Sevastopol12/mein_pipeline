@@ -32,7 +32,7 @@ class Extractor:
                 task: dict = await task_holder.queue.get()
 
                 if isinstance(task, PoisonPill):
-                    logger.info("No task left. Returning...")
+                    logger.info(f"No task left. Returning...[{self.config.model_name}].")
                     return
 
                 logger.info(f"{self.config.model_name} got file: {task.get('format')}")

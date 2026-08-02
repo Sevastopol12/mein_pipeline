@@ -15,6 +15,8 @@ from sqlalchemy import inspect, insert, update, select
 from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy.schema import CreateSchema
 from asyncpg.exceptions import UniqueViolationError
+from pyarrow import BufferReader
+from pyarrow.parquet import read_table
 
 from dags.storage.models import Base, DataChunkStatus, StatusType
 from ..credential import Credential, RDBCredential
@@ -57,7 +59,7 @@ class CloudStorageConnection:
 
         if supported_format is not None:
             if not isinstance(supported_format, set):
-                supported_format = set(supported_format)
+                supported_format = {supported_format}
 
             kwargs["supported_format"] = supported_format
 
@@ -126,8 +128,17 @@ class CloudStorageConnection:
             logger.exception(e)
             return 0
 
-    async def read_parquet_file(file_urls):
-        pass
+    async def read_parquet_file(
+        self, chunk_id: str, file_format: str = ".parquet"
+    ) -> dict[str, list]:
+        content = await self.connection._cat_file(
+            f"{self.storage_path}/chunk_{chunk_id}{file_format}"
+        )
+        buffer = BufferReader(content)
+
+        results = read_table(buffer).to_pydict()
+
+        return results
 
 
 @dataclass
