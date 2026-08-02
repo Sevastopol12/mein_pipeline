@@ -18,4 +18,8 @@ def hash_file_content(file: str | bytes) -> str:
     return base64.b64encode(digest.encode("utf-8")).decode("utf-8")
 
 
-__all__ = ["hash_file_content"]
+def encode_file_content(raw_bytes: bytes) -> str:
+    return base64.b64encode(raw_bytes).decode("utf-8")
+
+
+__all__ = ["hash_file_content", "encode_file_content"]

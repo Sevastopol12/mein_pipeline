@@ -1,7 +1,8 @@
 import json
-from uuid import UUID, uuid5
+from uuid import UUID
 from typing import Any, Dict
 
+from enum import Enum
 from sqlalchemy import Text, ForeignKey, UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -76,3 +77,17 @@ class Attendance(Base):
             column.name: getattr(self, column.name) for column in self.__table__.columns
         }
         return f"Attendance({json.dumps(data, default=str)})"
+
+
+class StatusType(str, Enum):
+    PENDING = "PENDING"
+    DONE = "DONE"
+    ERROR = "ERROR"
+
+
+class DataChunkStatus(Base):
+    __tablename__ = "task_status"
+    __table_args__ = {"schema": "data_chunk_status"}
+
+    chunk_id: Mapped[str] = mapped_column(Text, primary_key=True, nullable=False)
+    status: Mapped[StatusType] = mapped_column(default=StatusType.PENDING)

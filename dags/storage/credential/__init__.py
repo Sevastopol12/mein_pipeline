@@ -1,8 +1,10 @@
 import os
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from dotenv import load_dotenv
 from abc import abstractmethod
+from typing import Optional
+
 
 logger = logging.getLogger(__name__)
 load_dotenv()
@@ -10,8 +12,8 @@ load_dotenv()
 
 @dataclass
 class Credential:
-    bucket_type: str
-    bucket_name: str
+    bucket_type: Optional[str] = field(default=None)
+    bucket_name: Optional[str] = field(default=None)
 
     @abstractmethod
     def _get_credentials(self) -> dict:
@@ -46,9 +48,16 @@ class GCCredential(Credential):
         pass
 
 
+class RDBCredential(Credential):
+    def _get_credentials(self) -> str:
+        # Construct the SQLAlchemy connection string
+        connection_string = f"postgresql+asyncpg://{os.getenv('USER')}:{os.getenv('PASSWORD')}@{os.getenv('HOST')}:{os.getenv('PORT')}/{os.getenv('DBNAME')}?ssl=require"
+        return connection_string
+
+
 if __name__ == "__main__":
     cred = S3Credential(bucket_type="s3", bucket_name="checkin_app")
     logger.info([cred._get_credentials()])
 
 
-__all__ = ["S3Credential", "GCCredential"]
+__all__ = ["S3Credential", "GCCredential", "RDBCredential"]

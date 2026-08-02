@@ -1,5 +1,5 @@
-from .database_models import Event, Attendance, Base
-from .object_models import Department, AttendanceRecord, EventItem
+from .database_models import Event, Attendance, Base, DataChunkStatus, StatusType
+from .object_models import Department, AttendanceRecord, EventItem, ParquetTable
 
 __all__ = [
     "Event",
@@ -8,4 +8,7 @@ __all__ = [
     "Department",
     "AttendanceRecord",
     "EventItem",
+    "ParquetTable",
+    "DataChunkStatus",
+    "StatusType",
 ]
