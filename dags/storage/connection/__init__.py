@@ -56,6 +56,9 @@ class CloudStorageConnection:
         }
 
         if supported_format is not None:
+            if not isinstance(supported_format, set):
+                supported_format = set(supported_format)
+
             kwargs["supported_format"] = supported_format
 
         return cls(**kwargs)
