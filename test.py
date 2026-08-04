@@ -2,7 +2,7 @@ import asyncio
 import logging
 from dotenv import load_dotenv
 from dags.storage import ingestion
-from dags.tasks import run_extraction
+from dags.tasks import run_etl
 
 
 load_dotenv()
@@ -18,7 +18,7 @@ logging.basicConfig(
 
 async def test_run():
     await ingestion()
-    await run_extraction()
+    await run_etl()
 
 
 if __name__ == "__main__":
