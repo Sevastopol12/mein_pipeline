@@ -1,6 +1,6 @@
 import logging
 
-from .config import ExtractorConfig, ResponseBaseWait
+from .config import ExtractorConfig, ResponseBaseWait, FetchFailed
 from ..queue import PoisonPill, ProductionQueue
 
 from pydantic import ValidationError
@@ -55,7 +55,7 @@ class Extractor:
                         task_holder.record(task_status)
 
             except (ClientError, ServerError, ValidationError) as e:
-                logger.critical(e)
+                logger.exception(e)
                 task_status = {"status": "FAILED", "object": task}
                 task_holder.record(task_status)
             except Exception as e:
@@ -74,7 +74,7 @@ class Extractor:
             data=task.get("raw_bytes"), mime_type=f"application/{task.get('format')}"
         )
 
-        logger.info(f"Format: {task.get('format')}.\n File: {file}")
+        logger.info(f"[{self.config.model_name}]: Extracting content...")
 
         async with timeout(self.task_timeout):
             response: GenerateContentResponse = (
@@ -87,7 +87,12 @@ class Extractor:
                     ),
                 )
             )
-            
+        logger.info(
+            f"[{self.config.model_name}]: Extract complete. Got: [{type(response)}]"
+        )
+        if response.text is None:
+            raise FetchFailed
+
         content = response.text.replace("*", "").replace("`", "").strip()
 
         return self.config.response_schema.model_validate_json(content)

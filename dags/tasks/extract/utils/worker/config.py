@@ -14,7 +14,11 @@ class ExtractorConfig:
     max_attempts: int = 10
 
     def _retry_on_exception(self, exception) -> bool:
-        if isinstance(exception, ServerError) or isinstance(exception, TimeoutError):
+        if (
+            isinstance(exception, ServerError)
+            or isinstance(exception, TimeoutError)
+            or isinstance(exception, FetchFailed)
+        ):
             return True
 
         elif isinstance(exception, ClientError):
@@ -38,4 +42,9 @@ class ResponseBaseWait:
             if exception.code == 504:
                 return 15
         return self.default_wait(retry_state=retry_state)
-    
+
+
+class FetchFailed(Exception):
+    """Raise when a worker return None type object on a fetch session."""
+
+    pass
