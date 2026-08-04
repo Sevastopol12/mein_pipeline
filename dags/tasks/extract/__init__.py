@@ -1,6 +1,6 @@
 import logging
 import json
-
+import base64
 
 from asyncio import create_task, gather
 from pydantic import BaseModel
@@ -66,25 +66,8 @@ async def extract(tasks: list[dict], models: list[str]):
         logger.info("All task done. Stopping workers...")
 
         results = queue.summarize()
+        return results
 
-        succeed: list[BaseModel] = results["succeed"]
-        failed: list[dict] = results["failed"]
-
-        logger.info("Storing results.")
-
-        with open("tester/succeed.jsonl", "w", encoding="utf-8") as file:
-            data = "\n".join(
-                item.model_dump_json() for item in succeed if item.is_event
-            )
-            file.write(data)
-
-        with open("tester/failed.jsonl", "w", encoding="utf-8") as file:
-            for obj in failed:
-                file.write(json.dumps(obj) + "\n")
-
-        logger.info("Done.")
-
-        return 1
     except Exception as e:
         logger.exception(e)
         return 0
@@ -116,11 +99,31 @@ async def run_extraction():
                 encoded_bytes=data_chunk.get("encoded_bytes"),
             )
 
-            logger.info("Data converted to ideal format. Rxtracting content...")
+            logger.info("Data converted to ideal format. Extracting content...")
 
-            result = await extract(tasks=tasks, models=models)
+            results = await extract(tasks=tasks, models=models)
 
-            if result:
+            succeed: list[BaseModel] = results["succeed"]
+            failed: list[dict] = results["failed"]
+
+            logger.info("Storing results.")
+
+            with open("tester/succeed.jsonl", "w", encoding="utf-8") as file:
+                data = "\n".join(
+                    item.model_dump_json() for item in succeed if item.is_event
+                )
+                file.write(data)
+
+            with open("tester/failed.jsonl", "w", encoding="utf-8") as file:
+                for obj in failed:
+                    if isinstance(obj['raw_bytes'], bytes):
+                        obj['raw_bytes'] = base64.b64encode(obj['raw_bytes']).decode('utf-8')
+                    file.write(json.dumps(obj) + "\n")
+
+            logger.info("Done.")
+
+
+            if results:
                 rowcount = await data_chunk_manager.update_chunk_status(
                     chunk_id=chunk_status["chunk_id"], status=StatusType.DONE
                 )
@@ -128,5 +131,6 @@ async def run_extraction():
 
     logger.info("Extract complete.")
     return 1
+
 
 __all__ = ["run_extraction", "extract"]

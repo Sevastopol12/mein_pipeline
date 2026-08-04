@@ -32,7 +32,7 @@ class ProductionQueue:
         return cls(queue=production_queue)
 
     def record(self, record: dict[str, Any]):
-        logger.info(f"Got record: {record.get('object')} - {record.get('status')}")
+        logger.info(f"Got record: {record.get('status')}")
         if record.get("status") == "SUCCEED":
             self.succeed_tasks.append(record.get("object"))
         else:
