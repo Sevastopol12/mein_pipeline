@@ -8,11 +8,7 @@ from pydantic import ValidationError
 from google.genai.types import GenerateContentConfig, GenerateContentResponse, Part
 from google.genai.errors import ClientError, ServerError
 
-from tenacity import (
-    AsyncRetrying,
-    retry_if_exception,
-    stop_after_attempt,
-)
+from tenacity import AsyncRetrying, retry_if_exception, stop_after_attempt, RetryError
 from asyncio import timeout
 from aiolimiter import AsyncLimiter
 
@@ -54,14 +50,30 @@ class Extractor:
                         }
                         task_holder.record(task_status)
 
-            except (ClientError, ServerError, ValidationError) as e:
-                logger.exception(e)
-                task_status = {"status": "FAILED", "object": task}
-                task_holder.record(task_status)
+            except RetryError as e:
+                logger.exception(f"[{self.config.model_name}]: {e}")
+
+                last_exception = e.last_attempt.exception()
+
+                if isinstance(last_exception, ClientError):
+                    task_holder.assign_for_review()
+
+                elif isinstance(last_exception, ServerError) or isinstance(
+                    last_exception, ValidationError
+                ):
+                    task_holder.assign_for_rerun()
+
+                task_holder.record(
+                    {"status": "FAILED", "object": task, "exc": last_exception}
+                )
+
             except Exception as e:
                 logger.exception(e)
-                task_status = {"status": "FAILED", "object": task}
-                task_holder.record(task_status)
+                task_holder.assign_for_review()
+                task_holder.record(
+                    {"status": "FAILED", "object": task, "exc": last_exception}
+                )
+
             finally:
                 task_holder.queue.task_done()
 

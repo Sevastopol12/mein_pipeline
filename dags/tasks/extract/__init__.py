@@ -89,10 +89,12 @@ async def run_extraction():
     async with staging_database_connection:
         for chunk_status in all_chunk_status:
             logger.info(f"Processing: {chunk_status}")
-            if chunk_status["status"] == StatusType.PENDING:
-                data_chunk = await staging_database_connection.read_parquet_file(
-                    chunk_id=chunk_status["chunk_id"]
-                )
+
+            if chunk_status["status"] != StatusType.PENDING:
+                continue
+            data_chunk = await staging_database_connection.read_parquet_file(
+                chunk_id=chunk_status["chunk_id"]
+            )
 
             tasks = decode_and_convert_to_records(
                 file_format=data_chunk.get("format"),
@@ -103,31 +105,32 @@ async def run_extraction():
 
             results = await extract(tasks=tasks, models=models)
 
+            batch_status: StatusType = results["status"]
             succeed: list[BaseModel] = results["succeed"]
             failed: list[dict] = results["failed"]
 
             logger.info("Storing results.")
 
-            with open("tester/succeed.jsonl", "w", encoding="utf-8") as file:
+            with open("tester/succeed.jsonl", "a", encoding="utf-8") as file:
                 data = "\n".join(
                     item.model_dump_json() for item in succeed if item.is_event
                 )
                 file.write(data)
 
-            with open("tester/failed.jsonl", "w", encoding="utf-8") as file:
+            with open("tester/failed.jsonl", "a", encoding="utf-8") as file:
                 for obj in failed:
-                    if isinstance(obj['raw_bytes'], bytes):
-                        obj['raw_bytes'] = base64.b64encode(obj['raw_bytes']).decode('utf-8')
+                    if isinstance(obj["raw_bytes"], bytes):
+                        obj["raw_bytes"] = base64.b64encode(obj["raw_bytes"]).decode(
+                            "utf-8"
+                        )
                     file.write(json.dumps(obj) + "\n")
 
             logger.info("Done.")
 
-
-            if results:
-                rowcount = await data_chunk_manager.update_chunk_status(
-                    chunk_id=chunk_status["chunk_id"], status=StatusType.DONE
-                )
-                logger.info(f"Chunk marked as done: {'True' if rowcount else 'False'}")
+            rowcount = await data_chunk_manager.update_chunk_status(
+                chunk_id=chunk_status["chunk_id"], status=batch_status
+            )
+            logger.info(f"Chunk marked as done: {'True' if rowcount else 'False'}")
 
     logger.info("Extract complete.")
     return 1

@@ -3,6 +3,9 @@ from asyncio import Queue
 from pydantic import BaseModel
 from typing import Any
 
+from dags.storage import StatusType
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,6 +18,7 @@ class PoisonPill:
 class ProductionQueue:
     def __init__(self, queue: Queue[dict | PoisonPill]):
         self.queue: Queue = queue
+        self.status: StatusType = StatusType.DONE
         self.succeed_tasks: list[BaseModel] = []
         self.failed_tasks: list[dict] = []
 
@@ -40,9 +44,18 @@ class ProductionQueue:
 
     def summarize(self) -> dict[str, list]:
         return {
+            "status": self.status,
             "succeed": self.succeed_tasks,
             "failed": self.failed_tasks,
         }
+
+    def assign_for_review(self):
+        self.status = StatusType.ERROR
+        logger.critical("Batch failed unexpectedly. Review required...")
+
+    def assign_for_rerun(self):
+        self.status = StatusType.PENDING
+        logger.critical("Batch failed unexpectedly. Assigning for re-run...")
 
 
 __all__ = ["ProductionQueue", "PoisonPill"]
