@@ -13,16 +13,17 @@ from tenacity import (
     retry_if_exception,
     stop_after_attempt,
 )
-
+from asyncio import timeout
 from aiolimiter import AsyncLimiter
 
 logger = logging.getLogger(__name__)
 
 
 class Extractor:
-    def __init__(self, client, config: ExtractorConfig):
+    def __init__(self, client, config: ExtractorConfig, task_timeout: int = 120):
         self.client = client
         self.config = config
+        self.task_timeout = task_timeout
 
     async def process(self, task_holder: ProductionQueue) -> None:
         rpm_limit = AsyncLimiter(self.config.rpm)
@@ -32,7 +33,9 @@ class Extractor:
                 task: dict = await task_holder.queue.get()
 
                 if isinstance(task, PoisonPill):
-                    logger.info(f"No task left. Returning...[{self.config.model_name}].")
+                    logger.info(
+                        f"No task left. Returning...[{self.config.model_name}]."
+                    )
                     return
 
                 logger.info(f"{self.config.model_name} got file: {task.get('format')}")
@@ -73,14 +76,18 @@ class Extractor:
 
         logger.info(f"Format: {task.get('format')}.\n File: {file}")
 
-        response: GenerateContentResponse = await self.client.models.generate_content(
-            model=self.config.model_name,
-            contents=[self.config.instruction, file],
-            config=GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=self.config.response_schema,
-            ),
-        )
+        async with timeout(self.task_timeout):
+            response: GenerateContentResponse = (
+                await self.client.models.generate_content(
+                    model=self.config.model_name,
+                    contents=[self.config.instruction, file],
+                    config=GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=self.config.response_schema,
+                    ),
+                )
+            )
+            
         content = response.text.replace("*", "").replace("`", "").strip()
 
         return self.config.response_schema.model_validate_json(content)
