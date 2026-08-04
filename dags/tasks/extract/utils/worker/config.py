@@ -22,7 +22,7 @@ class ExtractorConfig:
             return True
 
         elif isinstance(exception, ClientError):
-            if exception.code != 429:
+            if exception.code == 429:
                 return True
 
         return False
