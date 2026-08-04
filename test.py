@@ -1,19 +1,25 @@
-import logging
-import logging.config
 import asyncio
-from dags.tasks import run_extract
+import logging
+from dotenv import load_dotenv
+from dags.storage import ingestion
+from dags.tasks import run_extraction
+
+
+load_dotenv()
+
 
 logging.basicConfig(
-    level=logging.DEBUG,
-    filename="pipe.log",
+    level=logging.INFO,
+    filename="tester.log",
     filemode="w",
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
 
-async def main():
-    await run_extract()
+async def test_run():
+    await ingestion()
+    await run_extraction()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(test_run())

@@ -1,4 +1,5 @@
 from tenacity import wait_exponential_jitter
+from asyncio.exceptions import TimeoutError
 from google.genai.errors import ClientError, ServerError
 from pydantic import BaseModel
 from dataclasses import dataclass
@@ -13,11 +14,15 @@ class ExtractorConfig:
     max_attempts: int = 10
 
     def _retry_on_exception(self, exception) -> bool:
-        if isinstance(exception, ServerError):
+        if (
+            isinstance(exception, ServerError)
+            or isinstance(exception, TimeoutError)
+            or isinstance(exception, FetchFailed)
+        ):
             return True
 
-        if isinstance(exception, ClientError):
-            if exception.code != 429:
+        elif isinstance(exception, ClientError):
+            if exception.code == 429:
                 return True
 
         return False
@@ -29,9 +34,17 @@ class ResponseBaseWait:
 
     def __call__(self, retry_state):
         exception = retry_state.outcome.exception()
-
-        if exception.code == 429:
-            return 60
-        if exception.code == 503:
-            return 4
+        if hasattr(exception, "code"):
+            if exception.code == 429:
+                return 60
+            if exception.code == 503:
+                return 4
+            if exception.code == 504:
+                return 15
         return self.default_wait(retry_state=retry_state)
+
+
+class FetchFailed(Exception):
+    """Raise when a worker return None type object on a fetch session."""
+
+    pass
