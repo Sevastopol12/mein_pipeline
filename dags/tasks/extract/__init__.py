@@ -73,7 +73,7 @@ async def extract(tasks: list[dict], models: list[str]):
         return 0
 
 
-async def run_extraction():
+async def run_etl():
     models = ["gemma-4-31b-it", "gemma-4-26b-a4b-it"]
 
     data_chunk_manager = DataChunkManager.establish_connection(
@@ -136,4 +136,4 @@ async def run_extraction():
     return 1
 
 
-__all__ = ["run_extraction", "extract"]
+__all__ = ["run_etl", "extract"]
