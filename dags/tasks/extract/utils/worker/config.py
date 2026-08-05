@@ -12,6 +12,17 @@ class ExtractorConfig:
     response_schema: BaseModel
     rpm: int = 15
     max_attempts: int = 10
+    max_time_wait_on_task: int = 180
+    file_format_mapping: dict[str, str] = {
+        "png": "image/png",
+        "jpeg": "image/jpeg",
+        "webp": "image/webp",
+        "heic": "image/heic",
+        "heif": "image/heif",
+        "pdf": "application/pdf",
+        "json": "text/plain",
+        "md": "text/plain",
+    }
 
     def _retry_on_exception(self, exception) -> bool:
         if (
@@ -26,6 +37,11 @@ class ExtractorConfig:
                 return True
 
         return False
+
+    def map_mime_type(self, file_format: str):
+        mime_type = self.file_format_mapping.get(file_format, None)
+
+        return mime_type
 
 
 class ResponseBaseWait:
