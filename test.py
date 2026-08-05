@@ -2,7 +2,7 @@ import asyncio
 import logging
 from dotenv import load_dotenv
 from dags.storage import ingestion
-from dags.tasks import run_etl
+from dags.etl import run_etl
 
 
 load_dotenv()
