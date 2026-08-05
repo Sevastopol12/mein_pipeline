@@ -1,6 +1,11 @@
 import logging
 
-from .config import ExtractorConfig, ResponseBaseWait, FetchFailed
+from .config import (
+    ExtractorConfig,
+    ResponseBaseWait,
+    FetchFailed,
+    UnsupportedFileFormat,
+)
 from ..queue import PoisonPill, ProductionQueue
 
 from pydantic import ValidationError
@@ -69,9 +74,7 @@ class Extractor:
             except Exception as e:
                 logger.exception(e)
                 task_holder.assign_for_review()
-                task_holder.record(
-                    {"status": "FAILED", "object": task, "exc": last_exception}
-                )
+                task_holder.record({"status": "FAILED", "object": task})
 
             finally:
                 task_holder.queue.task_done()
@@ -81,9 +84,11 @@ class Extractor:
         task: dict,
     ) -> bytes:
 
-        mime_type = self.config.map_mime_type(file_format=task.get("format"))
+        mime_type = self.config.map_mime_type(
+            file_format=task.get("format").replace(".", "")
+        )
         if mime_type is None:
-            raise ClientError(code=400, response=f"Unsupported MIME type: {mime_type}")
+            raise UnsupportedFileFormat
 
         file = Part.from_bytes(data=task.get("raw_bytes"), mime_type=f"{mime_type}")
 

@@ -2,7 +2,7 @@ from tenacity import wait_exponential_jitter
 from asyncio.exceptions import TimeoutError
 from google.genai.errors import ClientError, ServerError
 from pydantic import BaseModel
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -13,16 +13,18 @@ class ExtractorConfig:
     rpm: int = 15
     max_attempts: int = 10
     max_time_wait_on_task: int = 180
-    file_format_mapping: dict[str, str] = {
-        "png": "image/png",
-        "jpeg": "image/jpeg",
-        "webp": "image/webp",
-        "heic": "image/heic",
-        "heif": "image/heif",
-        "pdf": "application/pdf",
-        "json": "text/plain",
-        "md": "text/plain",
-    }
+    file_format_mapping: dict[str, str] = field(
+        default_factory=lambda: {
+            "png": "image/png",
+            "jpeg": "image/jpeg",
+            "webp": "image/webp",
+            "heic": "image/heic",
+            "heif": "image/heif",
+            "pdf": "application/pdf",
+            "json": "text/plain",
+            "md": "text/plain",
+        }
+    )
 
     def _retry_on_exception(self, exception) -> bool:
         if (
@@ -62,5 +64,11 @@ class ResponseBaseWait:
 
 class FetchFailed(Exception):
     """Raise when a worker return None type object on a fetch session."""
+
+    pass
+
+
+class UnsupportedFileFormat(Exception):
+    """Raise when a worker tries to process unsupported-format file."""
 
     pass
