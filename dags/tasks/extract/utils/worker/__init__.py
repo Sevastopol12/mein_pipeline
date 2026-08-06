@@ -1,6 +1,11 @@
 import logging
 
-from .config import ExtractorConfig, ResponseBaseWait, FetchFailed
+from .config import (
+    ExtractorConfig,
+    ResponseBaseWait,
+    FetchFailed,
+    UnsupportedFileFormat,
+)
 from ..queue import PoisonPill, ProductionQueue
 
 from pydantic import ValidationError
@@ -16,10 +21,9 @@ logger = logging.getLogger(__name__)
 
 
 class Extractor:
-    def __init__(self, client, config: ExtractorConfig, task_timeout: int = 120):
+    def __init__(self, client, config: ExtractorConfig):
         self.client = client
         self.config = config
-        self.task_timeout = task_timeout
 
     async def process(self, task_holder: ProductionQueue) -> None:
         rpm_limit = AsyncLimiter(self.config.rpm)
@@ -70,9 +74,7 @@ class Extractor:
             except Exception as e:
                 logger.exception(e)
                 task_holder.assign_for_review()
-                task_holder.record(
-                    {"status": "FAILED", "object": task, "exc": last_exception}
-                )
+                task_holder.record({"status": "FAILED", "object": task})
 
             finally:
                 task_holder.queue.task_done()
@@ -82,13 +84,17 @@ class Extractor:
         task: dict,
     ) -> bytes:
 
-        file = Part.from_bytes(
-            data=task.get("raw_bytes"), mime_type=f"application/{task.get('format')}"
+        mime_type = self.config.map_mime_type(
+            file_format=task.get("format").replace(".", "")
         )
+        if mime_type is None:
+            raise UnsupportedFileFormat
+
+        file = Part.from_bytes(data=task.get("raw_bytes"), mime_type=f"{mime_type}")
 
         logger.info(f"[{self.config.model_name}]: Extracting content...")
 
-        async with timeout(self.task_timeout):
+        async with timeout(self.config.max_time_wait_on_task):
             response: GenerateContentResponse = (
                 await self.client.models.generate_content(
                     model=self.config.model_name,

@@ -18,7 +18,7 @@ from asyncpg.exceptions import UniqueViolationError
 from pyarrow import BufferReader
 from pyarrow.parquet import read_table
 
-from dags.storage.models import Base, DataChunkStatus, StatusType
+from dags.storage.models import Base, DataChunkStatus, StatusType, Event
 from ..credential import Credential, RDBCredential
 from ..utils import hash_file_content, encode_file_content
 
@@ -237,4 +237,19 @@ class DataChunkManager(CloudRDBConnection):
             return mapped_results
 
 
-__all__ = ["CloudStorageConnection", "CloudRDBConnection", "DataChunkManager"]
+class ApplicationDatabaseConnection(CloudRDBConnection):
+    table: Base = Event
+
+    async def load_to_table(self, data: list[Event]):
+        async with self.get_session() as session:
+            session.add_all(data)
+
+        return 1
+
+
+__all__ = [
+    "CloudStorageConnection",
+    "CloudRDBConnection",
+    "DataChunkManager",
+    "ApplicationDatabaseConnection",
+]

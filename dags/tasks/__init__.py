@@ -1,3 +1,4 @@
-from .extract import run_extraction, extract
+from .extract import extract
+from .transform_load import load_to_database
 
-__all__ = ["run_extraction", "extract"]
+__all__ = ["extract", "load_to_database"]

@@ -6,7 +6,12 @@ from pympler import asizeof
 
 from asyncio import create_task, gather
 from .models import Event, EventItem, Base, ParquetTable, StatusType
-from .connection import CloudStorageConnection, DataChunkManager
+from .connection import (
+    CloudStorageConnection,
+    DataChunkManager,
+    ApplicationDatabaseConnection,
+    CloudRDBConnection,
+)
 from .credential import S3Credential, GCCredential, RDBCredential
 
 logger = logging.getLogger(__name__)
@@ -146,6 +151,8 @@ __all__ = [
     "Event",
     "EventItem",
     "Base",
+    "CloudRDBConnection",
+    "ApplicationDatabaseConnection",
     "CloudStorageConnection",
     "S3Credential",
     "GCCredential",

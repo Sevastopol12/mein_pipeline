@@ -48,9 +48,11 @@ class GCCredential(Credential):
 
 @dataclass
 class RDBCredential(Credential):
+    loc: str
+
     def _get_credentials(self) -> str:
         # Construct the SQLAlchemy connection string
-        connection_string = f"postgresql+asyncpg://{os.getenv('USER')}:{os.getenv('PASSWORD')}@{os.getenv('HOST')}:{os.getenv('PORT')}/{os.getenv('DBNAME')}?ssl=require"
+        connection_string = os.getenv(f"{self.loc}_CONNECTION_STRING")
         return connection_string
 
 
